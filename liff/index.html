@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>ポイント残高</title>
+  <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
+</head>
+<body style="font-family: sans-serif; padding: 16px;">
+  <h2>ポイント残高</h2>
+  <div id="state">起動中...</div>
+  <pre id="out" style="background:#f5f5f5;padding:12px;border-radius:8px;white-space:pre-wrap;"></pre>
+
+  <script>
+    const LIFF_ID = "YOUR_LIFF_ID"; // ←ここだけ後で差し替え
+
+    async function main() {
+      try {
+        await liff.init({ liffId: LIFF_ID });
+
+        if (!liff.isLoggedIn()) {
+          liff.login();
+          return;
+        }
+
+        const profile = await liff.getProfile();
+        document.getElementById("state").textContent = "取得中...";
+        document.getElementById("out").textContent =
+          "line_user_id: " + profile.userId + "\n" +
+          "displayName: " + profile.displayName;
+
+        const res = await fetch(`/api/points/balance-line?line_user_id=${encodeURIComponent(profile.userId)}`);
+        const json = await res.json();
+
+        document.getElementById("state").textContent = "結果";
+        document.getElementById("out").textContent += "\n\n" + JSON.stringify(json, null, 2);
+      } catch (e) {
+        document.getElementById("state").textContent = "エラー";
+        document.getElementById("out").textContent = String(e);
+      }
+    }
+
+    main();
+  </script>
+</body>
+</html>
