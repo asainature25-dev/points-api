@@ -14,52 +14,65 @@
   <div id="state">起動中...</div>
   <pre id="out" style="background:#f5f5f5;padding:12px;border-radius:8px;white-space:pre-wrap;"></pre>
 
-  <script>
-    const LIFF_ID = "2009265721-v5XUFK45"; // ←ここだけ後で差し替え
+ <script>
+  const LIFF_ID = "2009265721-v5XUFK45";
 
-    async function main() {
-      try {
-        await liff.init({ liffId: LIFF_ID });
+  async function main() {
+    try {
+      await liff.init({ liffId: LIFF_ID });
 
-        if (!liff.isLoggedIn()) {
-          liff.login();
-          return;
-        }
-
-        const profile = await liff.getProfile();
-        // 決済ボタン
-document.getElementById("checkoutBtn").onclick = async () => {
-  const res = await fetch("https://points-api.pages.dev/api/stripe/create-checkout", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ line_user_id: profile.userId }),
-  });
-
-  const data = await res.json();
-
-  if (data.url) {
-    location.href = data.url; // Stripeへ飛ぶ
-  } else {
-    alert("create-checkout error: " + JSON.stringify(data));
-  }s
-};
-        document.getElementById("state").textContent = "取得中...";
-        document.getElementById("out").textContent =
-          "line_user_id: " + profile.userId + "\n" +
-          "displayName: " + profile.displayName;
-
-        const res = await fetch(`/api/points/balance-line?line_user_id=${encodeURIComponent(profile.userId)}`);
-        const json = await res.json();
-
-        document.getElementById("state").textContent = "結果";
-        document.getElementById("out").textContent += "\n\n" + JSON.stringify(json, null, 2);
-      } catch (e) {
-        document.getElementById("state").textContent = "エラー";
-        document.getElementById("out").textContent = String(e);
+      if (!liff.isLoggedIn()) {
+        liff.login();
+        return;
       }
-    }
 
-    main();
-  </script>
+      const profile = await liff.getProfile();
+
+      // 決済ボタン（修正版）
+      document.getElementById("checkoutBtn").onclick = async () => {
+        try {
+          const res = await fetch("/api/stripe/create-checkout", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ line_user_id: profile.userId }),
+          });
+
+          const data = await res.json().catch(() => ({}));
+
+          if (!res.ok || !data.url) {
+            alert("create-checkout error: " + JSON.stringify({ status: res.status, data }));
+            return;
+          }
+
+          // LIFF内なら外部ブラウザで開く（Stripeはこれが安定）
+          if (liff.isInClient()) {
+            liff.openWindow({ url: data.url, external: true });
+          } else {
+            window.location.href = data.url;
+          }
+        } catch (e) {
+          alert("create-checkout exception: " + String(e));
+        }
+      };
+
+      // 残高表示
+      document.getElementById("state").textContent = "取得中...";
+      document.getElementById("out").textContent =
+        "line_user_id: " + profile.userId + "\n" +
+        "displayName: " + profile.displayName;
+
+      const res2 = await fetch(`/api/points/balance-line?line_user_id=${encodeURIComponent(profile.userId)}`);
+      const json2 = await res2.json();
+
+      document.getElementById("state").textContent = "結果";
+      document.getElementById("out").textContent += "\n\n" + JSON.stringify(json2, null, 2);
+    } catch (e) {
+      document.getElementById("state").textContent = "エラー";
+      document.getElementById("out").textContent = String(e);
+    }
+  }
+
+  main();
+</script>
 </body>
 </html>
