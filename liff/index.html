@@ -8,6 +8,9 @@
 </head>
 <body style="font-family: sans-serif; padding: 16px;">
   <h2>ポイント残高</h2>
+  <button id="checkoutBtn" style="margin:12px 0; padding:10px 14px; border-radius:10px;">
+  月額9,900円で登録（決済へ）
+</button>
   <div id="state">起動中...</div>
   <pre id="out" style="background:#f5f5f5;padding:12px;border-radius:8px;white-space:pre-wrap;"></pre>
 
@@ -24,6 +27,22 @@
         }
 
         const profile = await liff.getProfile();
+        // 決済ボタン
+document.getElementById("checkoutBtn").onclick = async () => {
+  const res = await fetch("https://points-api.pages.dev/api/stripe/create-checkout", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ line_user_id: profile.userId }),
+  });
+
+  const data = await res.json();
+
+  if (data.url) {
+    location.href = data.url; // Stripeへ飛ぶ
+  } else {
+    alert("create-checkout error: " + JSON.stringify(data));
+  }
+};
         document.getElementById("state").textContent = "取得中...";
         document.getElementById("out").textContent =
           "line_user_id: " + profile.userId + "\n" +
