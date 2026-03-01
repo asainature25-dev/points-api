@@ -6,6 +6,7 @@
   <title>ポイント残高</title>
   <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
 </head>
+
 <body style="font-family: system-ui, sans-serif; padding: 16px;">
   <h2 style="margin:0 0 8px;">ポイント残高</h2>
 
@@ -18,15 +19,19 @@
   <pre id="out" style="background:#f5f5f5;padding:12px;border-radius:8px;white-space:pre-wrap;"></pre>
 
 <script>
-  // ======= 必ずあなたのLIFF ID =======
+  // ======= LIFF ID =======
   const LIFF_ID = "2009265721-v5XUFK45";
 
-  // ======= APIは全部 Worker に寄せる（ここ超重要） =======
-  const API_BASE = "https://chanfana-openapi-template.asai-nature25-557.workers.dev";
+  // ======= APIは Worker に寄せる =======
+  const API_BASE = "https://chanfana-openapi-template.asai-nature25-557.workers.dev".replace(/\/+$/, "");
 
   const $state = document.getElementById("state");
   const $out   = document.getElementById("out");
   const $btn   = document.getElementById("checkoutBtn");
+
+  // 事故防止：ログイン/初期化が終わるまで押せない
+  $btn.disabled = true;
+  $btn.style.opacity = "0.6";
 
   const show = (msg, obj) => {
     $state.textContent = msg;
@@ -53,6 +58,11 @@
       }
 
       const profile = await liff.getProfile();
+
+      // ログイン完了したのでボタン有効化
+      $btn.disabled = false;
+      $btn.style.opacity = "1";
+
       show("取得中...", {
         line_user_id: profile.userId,
         displayName: profile.displayName
@@ -61,6 +71,8 @@
       // ====== 決済ボタン ======
       $btn.onclick = async () => {
         try {
+          $btn.disabled = true;
+          $btn.style.opacity = "0.6";
           show("決済URLを作成中...");
 
           const { res, data } = await fetchJson(`${API_BASE}/api/stripe/create-checkout`, {
@@ -71,7 +83,9 @@
 
           if (!res.ok || !data.url) {
             alert("create-checkout error: " + JSON.stringify({ status: res.status, data }));
-            show("エラー", { status: res.status, data });
+            show("create-checkout エラー", { status: res.status, data });
+            $btn.disabled = false;
+            $btn.style.opacity = "1";
             return;
           }
 
@@ -83,7 +97,9 @@
           }
         } catch (e) {
           alert("create-checkout exception: " + String(e));
-          show("エラー", String(e));
+          show("create-checkout 例外", String(e));
+          $btn.disabled = false;
+          $btn.style.opacity = "1";
         }
       };
 
@@ -93,12 +109,23 @@
         { method: "GET" }
       );
 
+      // 未連携は「エラー」じゃなく「案内」にする
+      if (resBal.status === 404 && bal?.error === "member not linked") {
+        show("未連携", {
+          ok: false,
+          error: "member not linked",
+          message: "LINEユーザーが会員に紐付いていません。決済後 or 運営の紐付け処理が必要です。",
+          line_user_id: profile.userId
+        });
+        return;
+      }
+
       if (!resBal.ok) {
         show("残高取得エラー", { status: resBal.status, bal });
         return;
       }
 
-      // 画面表示
+      // ====== 表示 ======
       $state.textContent = "結果";
       $out.textContent =
         "line_user_id: " + profile.userId + "\n" +
