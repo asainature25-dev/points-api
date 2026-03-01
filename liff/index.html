@@ -6,16 +6,42 @@
   <title>ポイント残高</title>
   <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
 </head>
-<body style="font-family: sans-serif; padding: 16px;">
-  <h2>ポイント残高</h2>
+<body style="font-family: system-ui, sans-serif; padding: 16px;">
+  <h2 style="margin:0 0 8px;">ポイント残高</h2>
+
   <button id="checkoutBtn" style="margin:12px 0; padding:10px 14px; border-radius:10px;">
-  月額9,900円で登録（決済へ）
-</button>
-  <div id="state">起動中...</div>
+    月額9,900円で登録（決済へ）
+  </button>
+
+  <div id="state" style="margin:8px 0;">起動中...</div>
+
   <pre id="out" style="background:#f5f5f5;padding:12px;border-radius:8px;white-space:pre-wrap;"></pre>
 
- <script>
+<script>
+  // ======= 必ずあなたのLIFF ID =======
   const LIFF_ID = "2009265721-v5XUFK45";
+
+  // ======= APIは全部 Worker に寄せる（ここ超重要） =======
+  const API_BASE = "https://chanfana-openapi-template.asai-nature25-557.workers.dev";
+
+  const $state = document.getElementById("state");
+  const $out   = document.getElementById("out");
+  const $btn   = document.getElementById("checkoutBtn");
+
+  const show = (msg, obj) => {
+    $state.textContent = msg;
+    if (obj !== undefined) {
+      $out.textContent = typeof obj === "string" ? obj : JSON.stringify(obj, null, 2);
+    }
+  };
+
+  async function fetchJson(url, options) {
+    const res = await fetch(url, options);
+    const text = await res.text();
+    let data = {};
+    try { data = JSON.parse(text); } catch (_) { data = { raw: text }; }
+    return { res, data };
+  }
 
   async function main() {
     try {
@@ -27,24 +53,29 @@
       }
 
       const profile = await liff.getProfile();
+      show("取得中...", {
+        line_user_id: profile.userId,
+        displayName: profile.displayName
+      });
 
-      // 決済ボタン（修正版）
-      document.getElementById("checkoutBtn").onclick = async () => {
+      // ====== 決済ボタン ======
+      $btn.onclick = async () => {
         try {
-          const res = await fetch("https://chanfana-openapi-template.asai-nature25-557.workers.dev/api/stripe/create-checkout", {
+          show("決済URLを作成中...");
+
+          const { res, data } = await fetchJson(`${API_BASE}/api/stripe/create-checkout`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ line_user_id: profile.userId }),
           });
 
-          const data = await res.json().catch(() => ({}));
-
           if (!res.ok || !data.url) {
             alert("create-checkout error: " + JSON.stringify({ status: res.status, data }));
+            show("エラー", { status: res.status, data });
             return;
           }
 
-          // LIFF内なら外部ブラウザで開く（Stripeはこれが安定）
+          // Stripeは外部ブラウザで開くのが安定
           if (liff.isInClient()) {
             liff.openWindow({ url: data.url, external: true });
           } else {
@@ -52,25 +83,30 @@
           }
         } catch (e) {
           alert("create-checkout exception: " + String(e));
+          show("エラー", String(e));
         }
       };
 
-      // 残高表示
-      document.getElementById("state").textContent = "取得中...";
-      document.getElementById("out").textContent =
+      // ====== 残高取得（Worker） ======
+      const { res: resBal, data: bal } = await fetchJson(
+        `${API_BASE}/api/points/balance-line?line_user_id=${encodeURIComponent(profile.userId)}`,
+        { method: "GET" }
+      );
+
+      if (!resBal.ok) {
+        show("残高取得エラー", { status: resBal.status, bal });
+        return;
+      }
+
+      // 画面表示
+      $state.textContent = "結果";
+      $out.textContent =
         "line_user_id: " + profile.userId + "\n" +
-        "displayName: " + profile.displayName;
+        "displayName: " + profile.displayName + "\n\n" +
+        JSON.stringify(bal, null, 2);
 
-      const res2 = await fetch(
-  `https://chanfana-openapi-template.asai-nature25-557.workers.dev/api/points/balance-line?line_user_id=${encodeURIComponent(profile.userId)}`
-);
-      const json2 = await res2.json();
-
-      document.getElementById("state").textContent = "結果";
-      document.getElementById("out").textContent += "\n\n" + JSON.stringify(json2, null, 2);
     } catch (e) {
-      document.getElementById("state").textContent = "エラー";
-      document.getElementById("out").textContent = String(e);
+      show("エラー", String(e));
     }
   }
 
