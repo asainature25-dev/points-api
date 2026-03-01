@@ -31,7 +31,7 @@
       // 決済ボタン（修正版）
       document.getElementById("checkoutBtn").onclick = async () => {
         try {
-          const res = await fetch("/api/stripe/create-checkout", {
+          const res = await fetch("https://chanfana-openapi-template.asai-nature25-557.workers.dev/api/stripe/create-checkout", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ line_user_id: profile.userId }),
@@ -61,7 +61,9 @@
         "line_user_id: " + profile.userId + "\n" +
         "displayName: " + profile.displayName;
 
-      const res2 = await fetch(`/api/points/balance-line?line_user_id=${encodeURIComponent(profile.userId)}`);
+      const res2 = await fetch(
+  `https://chanfana-openapi-template.asai-nature25-557.workers.dev/api/points/balance-line?line_user_id=${encodeURIComponent(profile.userId)}`
+);
       const json2 = await res2.json();
 
       document.getElementById("state").textContent = "結果";
